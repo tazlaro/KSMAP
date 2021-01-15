@@ -1,4 +1,6 @@
-// RFID reader + LCD - detection of my cards
+// RFID reader + LCD + RELAY (+ LED) - detection of my cards and control of access
+
+// RELAY has reversed states > LOW is ON (meaning opened) and HIGH is OFF (meaning closed)
 
 // libraries for RFID reader
 #include <SPI.h>
@@ -10,6 +12,12 @@
 // map pins on board (UNO R3) for SDA a RST pins on reader (for SPI communication)
 #define SDA_PIN 10
 #define RST_PIN 9
+// map pin on board to RELAY
+#define RELAY 5
+
+// time limits after reading a card
+#define STAY_OPEN 5000
+#define STAY_LOCKED 2000
 
 // instantiate RFID reader (from lib.)
 MFRC522 rfid(SDA_PIN, RST_PIN);
@@ -30,6 +38,10 @@ void setup() {
   lcd.backlight();
   lcd.noBlink();
   setScreanHello();
+
+  // setup RELAY
+  pinMode(RELAY, OUTPUT);
+  digitalWrite(RELAY, HIGH);
 }
 
 void loop() {
@@ -60,8 +72,9 @@ void loop() {
       piccType != MFRC522::PICC_TYPE_MIFARE_1K &&
       piccType != MFRC522::PICC_TYPE_MIFARE_4K) {
     Serial.println("This RFID card is not (fully) supported!\n(Type of MIFARE Classic?)");
+
     // Potential problems ahead if not supported and return disabled! (Must try if you want to read ID of unknown (type) card.)
- //   return;
+ //   return; 
   }
   
   // Print tag ID (hexadecimal)
@@ -72,26 +85,38 @@ void loop() {
   // My (known) cards
   if (rfid.uid.uidByte[0] == 0x79 & rfid.uid.uidByte[1] == 0xCA & rfid.uid.uidByte[2] == 0xD1 & rfid.uid.uidByte[3] == 0x98) {
     Serial.println("Found card #1");
-    handlingOfCards(true);
+    handlingOfCardsAndDoors(true);
   }
   else if (rfid.uid.uidByte[0] == 0x76 & rfid.uid.uidByte[1] == 0xCF & rfid.uid.uidByte[2] == 0x60 & rfid.uid.uidByte[3] == 0x29) {
     Serial.println("Found card #2");
+    handlingOfCardsAndDoors(true);
   }
   else if (rfid.uid.uidByte[0] == 0x86 & rfid.uid.uidByte[1] == 0x8E & rfid.uid.uidByte[2] == 0x53 & rfid.uid.uidByte[3] == 0x29) {
     Serial.println("Found card #3");
+    handlingOfCardsAndDoors(true);
   }
   else if (rfid.uid.uidByte[0] == 0xF4 & rfid.uid.uidByte[1] == 0x1A & rfid.uid.uidByte[2] == 0xFE & rfid.uid.uidByte[3] == 0x28) {
     Serial.println("Found card #4");
+    handlingOfCardsAndDoors(true);
   }
   else if (rfid.uid.uidByte[0] == 0xB9 & rfid.uid.uidByte[1] == 0xE3 & rfid.uid.uidByte[2] == 0xBE & rfid.uid.uidByte[3] == 0x98) {
     Serial.println("Found card #5");
+    handlingOfCardsAndDoors(true);
   }
   //  else if(rfid.uid.uidByte[0] == 0xF9 & rfid.uid.uidByte[1] == 0x23 & rfid.uid.uidByte[2] == 0x79 & rfid.uid.uidByte[3] == 0x98) {
   //    Serial.println("Found card #6");
+  //    handlingOfCardsAndDoors(true);
+  //  }
+  else if (rfid.uid.uidByte[0] == 0x04 & rfid.uid.uidByte[1] == 0x11 & rfid.uid.uidByte[2] == 0x6F & rfid.uid.uidByte[3] == 0xDA & rfid.uid.uidByte[4] == 0x8E & rfid.uid.uidByte[5] == 0x55 & rfid.uid.uidByte[6] == 0x80) {
+    Serial.println("Found card #7");
+    handlingOfCardsAndDoors(true);
+  }
+  //  else if (rfid.uid.uidByte[0] == 0x04 & rfid.uid.uidByte[1] == 0x53 & rfid.uid.uidByte[2] == 0x75 & rfid.uid.uidByte[3] == 0x7A & rfid.uid.uidByte[4] == 0x89 & rfid.uid.uidByte[5] == 0x48 & rfid.uid.uidByte[6] == 0x80) {
+  //    Serial.println("Found card #8");
+  //    handlingOfCardsAndDoors(true);
   //  }
   else {
-    Serial.println("Found UNKNOWN card!");
-    handlingOfCards(false);
+    handlingOfCardsAndDoors(false);
   }
 
 //  Serial.println(); // moved to handlingOfCards()
@@ -99,6 +124,23 @@ void loop() {
   // end of communication
   rfid.PICC_HaltA();
   rfid.PCD_StopCrypto1();
+}
+
+void handlingOfCardsAndDoors(bool known){
+  if (known == true) {
+    Serial.println("Found KNOWN card");
+    Serial.println();
+    setScreanEnter();
+    digitalWrite(RELAY, LOW);
+    delay(STAY_OPEN);
+    digitalWrite(RELAY, HIGH);
+  } else {
+    Serial.println("Found UNKNOWN card!");
+    Serial.println();
+    setScreanNoEnter();
+    delay(STAY_LOCKED);
+  }
+  setScreanHello();
 }
 
 void setScreanHello() {
@@ -111,20 +153,6 @@ void setScreanHello() {
   lcd.print("Waiting for a card.");
   lcd.setCursor ( 0, 3 );
   lcd.print("-------------------");
-}
-void handlingOfCards(bool known){
-  if (known == true) {
-    Serial.println("Found KNOWN card");
-    Serial.println();
-    setScreanEnter();
-    delay(5000);
-  } else {
-    Serial.println("Found UNKNOWN card!");
-    Serial.println();
-    setScreanNoEnter();
-    delay(2000);
-  }
-  setScreanHello();
 }
 
 void setScreanEnter() {
